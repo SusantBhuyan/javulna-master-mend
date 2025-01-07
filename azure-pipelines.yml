@@ -3,20 +3,43 @@
 # Add steps that analyze code, save build artifacts, deploy, and more:
 # https://docs.microsoft.com/azure/devops/pipelines/languages/java
 
+name: 'mend-cli-scan'
 trigger:
-- main
+- master
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: windows-latest
+variables:
+- name: MEND_URL
+  value: https://saas.mend.io 
 
 steps:
 - task: Maven@3
   inputs:
     mavenPomFile: 'pom.xml'
-    mavenOptions: '-Xmx3072m'
+    goals: 'clean install'
+    mavenOptions: -DskipTests=true
+    publishJUnitResults: false
     javaHomeOption: 'JDKVersion'
     jdkVersionOption: '1.11'
-    jdkArchitectureOption: 'x64'
-    publishJUnitResults: true
-    testResultsFiles: '**/surefire-reports/TEST-*.xml'
-    goals: 'package'
+    mavenVersionOption: 'Default'
+    mavenAuthenticateFeed: false
+    effectivePomSkip: false
+    sonarQubeRunAnalysis: false
+  # The Unified Agent scan should be called AFTER a package manager build step such as "mvn clean install -DskipTests=true" or "npm install --only=prod"
+- task: PowerShell@2
+  inputs:
+    targetType: inline
+    script: |
+        echo Downloading Mend Unified Agent
+        Invoke-WebRequest -Uri "https://unified-agent.s3.amazonaws.com/wss-unified-agent.jar" -OutFile ".\wss-unified-agent.jar"
+        echo Unified Agent downloaded successfully
+        java -jar wss-unified-agent.jar
+  env:
+      WS_APIKEY: $250865dd939049cabc5c954806c92f5f03ba0bb0398b4739980edc84374af819
+      WS_USERKEY: $09cfe5a95cbb4b41a99f6cfd4312279b0ee3669225094db5b96072cab0e2dc7f
+      WS_WSS_URL: https://saas.mend.io/agent
+      WS_PRODUCTNAME: $javulna-master_Susant
+      WS_PROJECTNAME: $javulna-master
+      WS_EXCLUDES: "**/.*,**/node_modules,**/src/test,**/testdata,**/*sources.jar,**/*javadoc.jar,**/*.jar,**/*.war,**/*.ear,**/*.aar,**/*.dll,**/*.exe,**/*.msi,**/*.nupkg,**/*.egg,**/*.whl,**/*.tar.gz,**/*.gem,**/*.deb,**/*.udeb,**/*.dmg,**/*.drpm,**/*.rpm,**/*.pkg.tar.xz,**/*.apk,**/*.swf,**/*.swc,**/*.air,**/*.apk,**/*.zip,**/*.gzip,**/*.tar.bz2,**/*.tgz"
+  displayName: Mend Unified Agent Scan
